@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>Sprutkoll</title>
+  <title>Sprutkoll (Google Drive)</title>
   <style>
     :root {
       --bg: #121212;
@@ -98,24 +98,29 @@
     }
 
     ul.history-list li:last-child { border-bottom: none; }
+    
+    .sync-status {
+      font-size: 12px;
+      color: #888;
+      margin-top: 8px;
+    }
   </style>
 </head>
 <body>
 
   <div class="container">
     <h1>Sprutkoll</h1>
-    <p class="subtitle">Håll koll på injektionsställe och intervall</p>
+    <p class="subtitle">Synkad via Google Drive</p>
 
-    <!-- Huvudkort -->
     <div class="card">
       <div style="font-size: 13px; color: var(--subtext);">Nästa tillfälle:</div>
       <div id="nextLegDisplay" class="next-leg">Laddar...</div>
       <div id="nextDateDisplay" style="font-size: 13px; color: var(--subtext); margin-bottom: 12px;"></div>
       
       <button class="action-btn" onclick="logInjection()">Registrera utförd spruta idag</button>
+      <div id="syncStatus" class="sync-status">Synkar med Drive...</div>
     </div>
 
-    <!-- Historik -->
     <div class="card">
       <h3>Historik</h3>
       <ul id="historyList" class="history-list"></ul>
@@ -124,14 +129,61 @@
   </div>
 
   <script>
+    // Klistra in din webbapp-URL från Google Apps Script här:
+    const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxGOFn9ZGzHuIpjZY7bUKycm_LC4y5TWabOrzqBmzLFM2yZcfPIX9KWqaAERHMjQEGT/exec';
+
     let history = JSON.parse(localStorage.getItem('injection_history')) || [];
+
+    async function loadData() {
+      updateUI(); // Visa lokal cache direkt så appen känns blixtsnabb
+      if (!GOOGLE_SCRIPT_URL || GOOGLE_SCRIPT_URL.includes('DIN_GOOGLE')) {
+        document.getElementById('syncStatus').innerText = 'Lokal lagring (ej kopplad till Drive än)';
+        return;
+      }
+
+      try {
+        document.getElementById('syncStatus').innerText = 'Hämtar från Google Drive...';
+        const response = await fetch(GOOGLE_SCRIPT_URL);
+        const cloudHistory = await response.json();
+        
+        if (Array.isArray(cloudHistory)) {
+          history = cloudHistory;
+          localStorage.setItem('injection_history', JSON.stringify(history));
+          updateUI();
+        }
+        document.getElementById('syncStatus').innerText = 'Synkad med Google Drive ✓';
+      } catch (err) {
+        console.error('Kunde inte hämta från Drive', err);
+        document.getElementById('syncStatus').innerText = 'Offline – visar lokalt sparad data';
+      }
+    }
+
+    async function saveData() {
+      localStorage.setItem('injection_history', JSON.stringify(history));
+      updateUI();
+
+      if (!GOOGLE_SCRIPT_URL || GOOGLE_SCRIPT_URL.includes('DIN_GOOGLE')) return;
+
+      try {
+        document.getElementById('syncStatus').innerText = 'Sparar till Google Drive...';
+        await fetch(GOOGLE_SCRIPT_URL, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'text/plain' },
+          body: JSON.stringify(history)
+        });
+        document.getElementById('syncStatus').innerText = 'Sparad i Google Drive ✓';
+      } catch (err) {
+        console.error('Kunde inte spara till Drive', err);
+        document.getElementById('syncStatus').innerText = 'Kunde inte nå Drive (sparad lokalt)';
+      }
+    }
 
     function updateUI() {
       const nextLegDisplay = document.getElementById('nextLegDisplay');
       const nextDateDisplay = document.getElementById('nextDateDisplay');
       const historyList = document.getElementById('historyList');
 
-      // Bestäm nästa ben (Växla mellan Höger och Vänster)
       let nextLeg = 'Höger ben';
       if (history.length > 0) {
         const lastLeg = history[0].leg;
@@ -141,7 +193,6 @@
       nextLegDisplay.innerText = nextLeg;
       nextLegDisplay.className = 'next-leg ' + (nextLeg.includes('Höger') ? 'right' : 'left');
 
-      // Beräkna nästa datum (14 dagar från senaste)
       if (history.length > 0) {
         let lastDate = new Date(history[0].dateObj);
         let nextDate = new Date(lastDate.getTime() + (14 * 24 * 60 * 60 * 1000));
@@ -150,7 +201,6 @@
         nextDateDisplay.innerText = 'Ingen historik registrerad än.';
       }
 
-      // Fyll historik-listan
       historyList.innerHTML = '';
       if (history.length === 0) {
         historyList.innerHTML = '<li style="color: #777; text-align: center; padding: 12px;">Inga sprutor loggade ännu.</li>';
@@ -163,7 +213,7 @@
       }
     }
 
-    function logInjection() {
+    async function logInjection() {
       let nextLeg = 'Höger ben';
       if (history.length > 0) {
         nextLeg = (history[0].leg === 'Höger ben') ? 'Vänster ben' : 'Höger ben';
@@ -179,19 +229,17 @@
       };
 
       history.unshift(entry);
-      localStorage.setItem('injection_history', JSON.stringify(history));
-      updateUI();
+      await saveData();
     }
 
-    function clearHistory() {
+    async function clearHistory() {
       if (confirm('Vill du rensa all historik?')) {
         history = [];
-        localStorage.removeItem('injection_history');
-        updateUI();
+        await saveData();
       }
     }
 
-    updateUI();
+    loadData();
   </script>
 </body>
 </html>
