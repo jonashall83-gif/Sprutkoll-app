@@ -9,34 +9,35 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Hämta kod
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Installera Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: 20
 
       - name: Installera beroenden
         run: npm install
 
       - name: Installera Java (Krävs för Android)
-        uses: actions/setup-java@v3
+        uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
 
       - name: Initiera Capacitor Android
         run: |
-          npx cap init --force
           npx cap add android
+          npx cap sync android
 
       - name: Bygg APK-fil (Debug)
         run: |
           cd android
+          chmod +x gradlew
           ./gradlew assembleDebug
 
       - name: Spara APK som en artefaktenhet
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: app-debug
           path: android/app/build/outputs/apk/debug/app-debug.apk
