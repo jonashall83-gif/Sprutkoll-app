@@ -1,5 +1,5 @@
 {
   "appId": "com.exempel.sprutkoll",
   "appName": "Sprutkoll",
-  "webDir": "."
+  "webDir": "www"
 }
