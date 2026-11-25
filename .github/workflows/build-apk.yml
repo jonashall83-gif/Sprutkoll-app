@@ -1,0 +1,43 @@
+name: Bygg Android APK
+
+on:
+  push:
+    branches: [ main, master ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Hämta kod
+        uses: actions/checkout@v3
+
+      - name: Installera Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
+      - name: Installera beroenden
+        run: npm install
+
+      - name: Installera Java (Krävs för Android)
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Initiera Capacitor Android
+        run: |
+          npx cap init --force
+          npx cap add android
+
+      - name: Bygg APK-fil (Debug)
+        run: |
+          cd android
+          ./gradlew assembleDebug
+
+      - name: Spara APK som en artefaktenhet
+        uses: actions/upload-artifact@v3
+        with:
+          name: app-debug
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          
